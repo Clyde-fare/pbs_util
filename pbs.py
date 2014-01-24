@@ -1,6 +1,7 @@
 """Utilities for submitting and managing pbs batch scripts."""
 
 import subprocess
+import paramiko
 import os
 import time
 import uuid
@@ -11,6 +12,27 @@ class PBSUtilError(Exception): pass
 class PBSUtilQStatError(PBSUtilError): pass
 class PBSUtilQSubError(PBSUtilError): pass
 class PBSUtilWaitError(PBSUtilError): pass
+
+qstat_c = '/opt/pbs/default/bin/qstat '
+qdel_c = '/opt/pbs/default/bin/qdel '
+qsub_c = '/opt/pbs/default/bin/qsub '
+
+user, server =  os.environ['GAUSS_HOST'].split('@')
+
+def connect_server(usrname = user, servname = server, ssh=True, sftp=False):
+    ssh_serv = paramiko.SSHClient()
+    ssh_serv.load_system_host_keys()
+    ssh_serv.connect(hostname=servname, username=usrname)
+    if not sftp:
+        return ssh_serv
+
+    sftp_serv = ssh_serv.open_sftp()
+
+    if not ssh:
+        ssh_serv.close()
+        return sftp_serv
+    else:
+        return ssh_serv,sftp_serv
 
 class JobStatus:
     
@@ -24,12 +46,14 @@ class JobStatus:
 
     def __str__(self):
         return '%10s %20s         %s   %s' % (self.id, self.name, self.state, self.elapsed_time)
-    
 
 def call_qstat(args):
     """Execute qstat, and return output lines"""
-    qstat_process = subprocess.Popen(["qstat"] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    return qstat_process.communicate()[0].splitlines()
+    ssh = connect_server()
+    i,o,e = ssh.exec_command(qstat_c + ' '.join(args))
+    qstat_output = "".join(o.readlines() + e.readlines())
+    ssh.close()
+    return qstat_output.splitlines()
 
 
 def parse_qstat_plain_output(output_lines):
@@ -54,6 +78,9 @@ def parse_qstat_plain_output(output_lines):
 def parse_qstat_all_output(output_lines):
     """Parse the output of qstat in the form with the -a argument."""
     
+    if len(output_lines) < 1:
+        return []
+
     if len(output_lines) < 3:
         raise PBSUtilQStatError('Bad qstat output:\n"%s"' % '\n'.join(output_lines))
 
@@ -62,7 +89,7 @@ def parse_qstat_all_output(output_lines):
     for output_line in output_lines[5:]:
         job_record = output_line.split()
         record_job_id = parse_qsub_output(job_record[0])[0]
-        record_job_state = job_record[8]
+        record_job_state = job_record[9]
         name = job_record[3]
         elapsed_time = job_record[10]
         username = job_record[1]
@@ -146,17 +173,39 @@ def parse_qsub_output(output):
         raise PBSUtilQSubError('Unable to parse qsub output: "%s"' % output)
 
     
-def qsub(script_filename, verbose=False):
+def qsub(script_filename, verbose=False, extra_files=None):
     """Submit the given pbs script, returning the jobid."""
-    cmd = ["qsub", script_filename]
-    qsub_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    qsub_output_pipes = qsub_process.communicate()
-    qsub_output = qsub_output_pipes[0]
+
+    if not extra_files:
+        extra_files = []
+
+    local_home = os.environ['ASE_HOME']
+    serv_home = os.environ['GAUSS_HOME']
+
+    script_filename = os.path.abspath(script_filename)
+    try:
+        r_script_loc = script_filename.split(local_home)[1]
+        remote_path = os.path.dirname(r_script_loc)
+    except IndexError:
+        raise RuntimeError('Not running from within ASE_HOME')
+
+    ssh, sftp = connect_server(ssh=True,sftp=True)
+    sftp.put(script_filename, serv_home + '/' + r_script_loc)
+
+    #extra files we are also copying into the same directory
+    for file_n in extra_files:
+        sftp.put(file_n, serv_home + remote_path + '/' + file_n)
+
+    sftp.close()
+    i,o,e = ssh.exec_command('cd {pth};'.format(pth=serv_home + remote_path) + qsub_c + ' ' + serv_home + r_script_loc)
+    qsub_output = o.readlines() + e.readlines()
+    ssh.close()
+
     if len(qsub_output) == 0:
         raise PBSUtilQSubError("Failed to submit %s, qsub gave no stdoutput.  stderr: '%s'" % (script_filename, qsub_output_pipes[1]))
     if verbose:
         print '\n%s\n' %  qsub_output
-    pbs_id = parse_qsub_output(qsub_output)[0]
+    pbs_id = parse_qsub_output(qsub_output[0])[0]
     return pbs_id
 
 def qwait(job_id,sleep_interval=5,max_wait=None):
@@ -179,10 +228,15 @@ def qwait(job_id,sleep_interval=5,max_wait=None):
 
 def qdel(job_id):
     """Kill the given pbs jobid."""
+    ssh = connect_server()
     if isinstance(job_id, JobStatus):
-        qdel_process = subprocess.Popen(["qdel", str(job_id.id)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        i,o,e = ssh.exec_command(qdel_c + ' ' + job_id.id)
     else:
-        qdel_process = subprocess.Popen(["qdel", str(job_id)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        i,o,e = ssh.exec_command(qdel_c + ' ' + job_id)
+
+    qdel_output = o.readlines() + e.readlines()
+    ssh.close()
+
 
 def temp_file_name(suffix):
     """Return a new temporary file name."""
@@ -192,17 +246,17 @@ def get_signature():
     dummy_script_name = temp_file_name('dummy_script')
     open(dummy_script_name, 'w')
     try:
-        qsub_process = subprocess.Popen(["qsub", dummy_script_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        (job_id, signature) = parse_qsub_output(qsub_process.communicate()[0])
+        ssh = connect_server()
+        i,o,e = ssh.exec_command(qsub_c + ' ' + dummy_script_name)
+        qsub_output = o.readlines() + e.readlines()
+        (job_id, signature) = parse_qsub_output(qsub_output)
+        ssh.close()
         qdel(job_id)
     finally:
         os.remove(dummy_script_name)
 
-
     signature = '.'.join(signature.split('.')[:1])
-
     return signature
-
 
 def generic_script(contents, 
                    job_name=None, 
@@ -256,17 +310,17 @@ def generic_script(contents,
 
     additional_configuration =  '\n'.join(additional_configuration_lines)
 
-    the_script = """%(shebang)s
-# Created by %(me)s at %(current_time)s
-#PBS -V
-#PBS -N %(job_name)s
-#PBS -l nodes=%(numnodes)s:ppn=%(numcpu)s%(pmem)s%(mem)s
-#PBS -o %(stdout)s
-#PBS -e %(stderr)s
-%(additional_configuration)s
+    the_script = """#!/bin/bash
+# Created by /home/clyde/Software/pbs_util/pbs.pyc at 16:52 11/23/12
+#PBS -N unnamed_job
+#PBS -l npcus=1
+#PBS -l walltime=1:00:00
+#PBS -j oe
 
-%(contents)s
-""" % locals()
+{ad_confg}
+
+{c}
+""".format(ad_confg = additional_configuration, c=contents)
 
     return the_script
 
