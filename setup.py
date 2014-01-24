@@ -4,5 +4,5 @@ setup(name='pbs_util',
       author='Paul J. Ledbetter',
       author_email='plediii@github.com',
       url='https://github.com/plediii/pbs_util',
-      packages=['pbs_util','pbs_util.tempfile_util'],
+      py_modules = ['pbs_util'],
       )
