@@ -12,6 +12,8 @@ queue=None
 walltime=None
 pmem=None
 mem=None
+user=''
+server=''
 
 max_submissions=200
 
@@ -36,7 +38,7 @@ def config_email(configuration):
 
 
 def config_pbs(configuration):
-    global numnodes, numprocs, clients_per_pbs, queue, walltime, max_submissions, pmem, mem
+    global numnodes, numprocs, clients_per_pbs, queue, walltime, max_submissions, pmem, mem, user, server
 
     section = 'PBSUTIL' 
 
@@ -44,10 +46,8 @@ def config_pbs(configuration):
         if configuration.has_option(section, 'numnodes'):
             numnodes = configuration.get(section, 'numnodes')
 
-
         if configuration.has_option(section, 'pmem'):
             pmem = configuration.get(section, 'pmem')
-
 
         if configuration.has_option(section, 'mem'):
             mem = configuration.get(section, 'mem')
@@ -57,18 +57,20 @@ def config_pbs(configuration):
 
         clients_per_pbs= int(numnodes) * int(numprocs)
 
-
         if configuration.has_option(section, 'queue'):
             queue = configuration.get(section, 'queue')
 
         if configuration.has_option(section, 'walltime'):
             walltime = configuration.get(section, 'walltime')
 
-
         if configuration.has_option(section, 'max_submissions'):
             max_submissions = configuration.getint(section, 'max_submissions')
 
-    
+        if configuration.has_option(section, 'user'):
+            user = configuration.get(section, 'user')
+
+         if configuration.has_option(section, 'server'):
+            server = configuration.get(section, 'server')  
 
 def config(config_file_name):
     """Configure pyamber using the config parser."""
@@ -90,14 +92,13 @@ def config(config_file_name):
 
 some_config_file_exists = False
 
-default_config_file_name = os.getenv('HOME') + '/.pbs_util.ini'
+#default_config_file_name = os.getenv('HOME') + '/.pbs_util.ini'
+default_config_file_name = 'pbs_util.ini'
 config(default_config_file_name)
 
-local_config_file_name = os.getcwd() + '/pbs_util.ini'
-config(local_config_file_name)
+#local_config_file_name = os.getcwd() + '/pbs_util.ini'
+#config(local_config_file_name)
 
-default_email_config_file_name = os.getenv('HOME') + '/.send_email.ini'
-config(default_email_config_file_name)
+#default_email_config_file_name = os.getenv('HOME') + '/.send_email.ini'
+#config(default_email_config_file_name)
 
-if not some_config_file_exists:
-    sys.stderr.write("WARNING: Neither ~/.pyp_util.ini nor ./pbs_util.ini exist.")

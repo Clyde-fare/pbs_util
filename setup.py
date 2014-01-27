@@ -5,4 +5,5 @@ setup(name='pbs_util',
       author_email='plediii@github.com',
       url='https://github.com/plediii/pbs_util',
       packages=['pbs_util'],
+      data_files=[('',['pbs_util.ini'])]]
       )

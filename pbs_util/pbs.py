@@ -17,7 +17,8 @@ qstat_c = '/opt/pbs/default/bin/qstat '
 qdel_c = '/opt/pbs/default/bin/qdel '
 qsub_c = '/opt/pbs/default/bin/qsub '
 
-user, server =  os.environ['GAUSS_HOST'].split('@')
+#user, server =  os.environ['GAUSS_HOST'].split('@')
+user, server = configuration.user, configuration.server
 
 def connect_server(usrname = user, servname = server, ssh=True, sftp=False):
     ssh_serv = paramiko.SSHClient()
