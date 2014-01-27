@@ -69,7 +69,7 @@ def config_pbs(configuration):
         if configuration.has_option(section, 'user'):
             user = configuration.get(section, 'user')
 
-         if configuration.has_option(section, 'server'):
+        if configuration.has_option(section, 'server'):
             server = configuration.get(section, 'server')  
 
 def config(config_file_name):
