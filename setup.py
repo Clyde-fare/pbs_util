@@ -5,5 +5,6 @@ setup(name='pbs_util',
       author_email='plediii@github.com',
       url='https://github.com/Clyde-fare/pbs_util',
       packages=['pbs_util'],
+      package_dir={'pbs_util': 'pbs_util'},
       package_data={'pbs_util': ['data/*.ini']},
       )
