@@ -3,7 +3,7 @@ import sys
 import os
 import pwd
 import ConfigParser
-
+import pkg_resource
 
 numnodes=1
 numprocs=1
@@ -93,7 +93,9 @@ def config(config_file_name):
 some_config_file_exists = False
 
 #default_config_file_name = os.getenv('HOME') + '/.pbs_util.ini'
-default_config_file_name = 'data/pbs_util.ini'
+#default_config_file_name = 'data/pbs_util.ini'
+default_config_file_name = pkg_resource.resource_filename('pbs_util', 'data/pbs_util.ini')
+
 config(default_config_file_name)
 
 #local_config_file_name = os.getcwd() + '/pbs_util.ini'
