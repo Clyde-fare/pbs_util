@@ -3,7 +3,6 @@ import sys
 import os
 import pwd
 import ConfigParser
-import pkg_resources
 
 numnodes=1
 numprocs=1
@@ -88,19 +87,6 @@ def config(config_file_name):
 
     config_email(configuration)
 
-
-
-some_config_file_exists = False
-
-#default_config_file_name = os.getenv('HOME') + '/.pbs_util.ini'
-#default_config_file_name = 'data/pbs_util.ini'
-default_config_file_name = pkg_resources.resource_filename('pbs_util', 'data/pbs_util.ini')
-
+datadir = sys.prefix 
+default_config_file_name = os.path.join(datadir, "data", "pbs_util.ini")
 config(default_config_file_name)
-
-#local_config_file_name = os.getcwd() + '/pbs_util.ini'
-#config(local_config_file_name)
-
-#default_email_config_file_name = os.getenv('HOME') + '/.send_email.ini'
-#config(default_email_config_file_name)
-
