@@ -87,6 +87,6 @@ def config(config_file_name):
 
     config_email(configuration)
 
-datadir = sys.prefix 
-default_config_file_name = os.path.join(datadir, "data", "pbs_util.ini")
+this_dir, this_filename = os.path.split(__file__)
+default_config_file_name = os.path.join(this_dir, "data", "pbs_util.ini")
 config(default_config_file_name)
